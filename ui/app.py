@@ -1,719 +1,935 @@
 import streamlit as st
-import pandas as pd
 import json
-from workflow_data import AI_WORKFLOWS, SKILL_MATRIX, PROMPT_TEMPLATES
+import os
+import sys
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "data", "job_categories_full.json")
+
+# ============================
+#  THEME CSS - 直接为每个主题写完整样式
+# ============================
+
+def get_theme_css():
+    dark = {
+        'bg': '#0a0e1a', 'bg_secondary': '#111827', 'card': '#1a1f2e',
+        'border': '#2a3042', 'text_primary': '#f0f6fc', 'text_secondary': '#8b949e', 
+        'text_muted': '#5a6078', 'accent': '#00d26a', 'accent_bg': 'rgba(0, 210, 106, 0.12)',
+        'accent_border': 'rgba(0, 210, 106, 0.2)', 'blue': '#4dabf7', 'blue_bg': 'rgba(77, 171, 247, 0.12)',
+        'purple': '#a371f7', 'shadow': '0 4px 12px rgba(0,0,0,0.3)', 'shadow_hover': '0 6px 20px rgba(0,0,0,0.4)',
+        'input_bg': '#1a1f2e', 'footer': '#5a6078',
+    }
+    
+    light = {
+        'bg': '#f8f7fc', 'bg_secondary': '#ffffff', 'card': '#ffffff',
+        'border': '#e8e5f0', 'text_primary': '#1a1a2e', 'text_secondary': '#6b6680', 
+        'text_muted': '#9b96b0', 'accent': '#7c3aed', 'accent_bg': 'rgba(124, 58, 237, 0.1)',
+        'accent_border': 'rgba(124, 58, 237, 0.2)', 'blue': '#4f46e5', 'blue_bg': 'rgba(79, 70, 229, 0.1)',
+        'purple': '#8b5cf6', 'shadow': '0 4px 12px rgba(124, 58, 237, 0.08)', 'shadow_hover': '0 6px 20px rgba(124, 58, 237, 0.12)',
+        'input_bg': '#ffffff', 'footer': '#9b96b0',
+    }
+    
+    def gen_theme(c, prefix=""):
+        return f"""
+        {prefix}html, {prefix}body, {prefix}.stApp, {prefix}#root, {prefix}section[data-testid="stAppViewContainer"] {{
+            background: {c['bg']} !important;
+            color: {c['text_secondary']} !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }}
+        
+        {prefix}.main .block-container {{
+            background: {c['bg']} !important;
+            padding: 24px 32px !important;
+            max-width: 1400px !important;
+        }}
+        
+        {prefix}.main {{
+            background: {c['bg']} !important;
+        }}
+        
+        {prefix}div[data-testid="stVerticalBlock"] > div {{
+            background: transparent !important;
+        }}
+        
+        {prefix}.stMarkdown, {prefix}.stText, {prefix}.stCode {{
+            background: transparent !important;
+        }}
+        
+        /* Sidebar */
+        {prefix}[data-testid="stSidebar"] {{
+            background: {c['bg_secondary']} !important;
+            border-right: 1px solid {c['border']} !important;
+        }}
+        {prefix}[data-testid="stSidebar"] > div:first-child {{
+            padding-top: 0 !important;
+            background: {c['bg_secondary']} !important;
+        }}
+        {prefix}[data-testid="stSidebar"] .stMarkdown,
+        {prefix}[data-testid="stSidebar"] label {{
+            color: {c['text_secondary']} !important;
+            font-size: 13px !important;
+        }}
+        {prefix}[data-testid="stSidebar"] h1, {prefix}[data-testid="stSidebar"] h2, {prefix}[data-testid="stSidebar"] h3 {{
+            color: {c['text_primary']} !important;
+        }}
+        {prefix}[data-testid="stSidebar"] .stSelectbox > div > div {{
+            background: {c['input_bg']} !important;
+            border: 1px solid {c['border']} !important;
+            border-radius: 10px !important;
+            color: {c['text_primary']} !important;
+        }}
+        
+        /* Brand Header */
+        {prefix}.brand-header {{
+            display: flex; align-items: center; gap: 12px; padding: 20px 16px;
+            border-bottom: 1px solid {c['border']}; margin-bottom: 24px;
+        }}
+        {prefix}.brand-header .logo-icon {{
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, {c['accent']}, {c['purple']});
+            border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            font-size: 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+        {prefix}.brand-header .brand-text {{
+            font-size: 18px; font-weight: 700; color: {c['text_primary']}; letter-spacing: -0.3px;
+        }}
+        {prefix}.brand-header .brand-sub {{
+            font-size: 11px; color: {c['text_secondary']}; letter-spacing: 1.5px;
+            text-transform: uppercase; margin-top: 2px;
+        }}
+        
+        /* Section Title */
+        {prefix}.section-title {{
+            font-size: 20px; font-weight: 700; color: {c['text_primary']};
+            margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+        }}
+        {prefix}.section-title .badge-live {{
+            background: {c['accent_bg']}; color: {c['accent']}; font-size: 11px;
+            font-weight: 600; padding: 3px 10px; border-radius: 20px;
+            border: 1px solid {c['accent_border']};
+        }}
+        
+        /* Metric Cards */
+        {prefix}.metric-card {{
+            background: {c['card']}; border: 1px solid {c['border']}; border-radius: 12px;
+            padding: 20px; transition: all 0.2s ease; box-shadow: {c['shadow']};
+        }}
+        {prefix}.metric-card:hover {{ border-color: {c['border']}; box-shadow: {c['shadow_hover']}; }}
+        {prefix}.metric-card .metric-label {{ color: {c['text_secondary']}; font-size: 13px; font-weight: 500; margin-bottom: 8px; }}
+        {prefix}.metric-card .metric-value {{ color: {c['text_primary']}; font-size: 28px; font-weight: 700; margin-bottom: 8px; }}
+        {prefix}.metric-card .metric-change {{ font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }}
+        {prefix}.metric-card .metric-change.up {{ color: {c['accent']}; }}
+        
+        /* Landing Hero */
+        {prefix}.landing-hero {{
+            text-align: center; padding: 80px 0 60px; background: {c['bg']} !important;
+        }}
+        {prefix}.landing-hero .hero-icon {{
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, {c['accent']}, {c['purple']});
+            border-radius: 20px; display: inline-flex; align-items: center; justify-content: center;
+            font-size: 40px; margin-bottom: 24px; color: #ffffff !important;
+        }}
+        {prefix}.landing-hero .hero-title {{
+            font-size: 32px; font-weight: 800; color: {c['text_primary']};
+            margin-bottom: 12px; letter-spacing: -0.5px;
+        }}
+        {prefix}.landing-hero .hero-subtitle {{
+            font-size: 15px; color: {c['text_secondary']}; max-width: 480px; margin: 0 auto; line-height: 1.7;
+        }}
+        
+        /* Step Guide */
+        {prefix}.step-guide {{
+            background: {c['card']}; border: 1px solid {c['border']}; border-radius: 16px;
+            padding: 32px; box-shadow: {c['shadow']};
+        }}
+        {prefix}.step-item .step-circle {{
+            width: 52px; height: 52px; background: {c['bg']}; border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700; color: {c['text_muted']};
+            margin-bottom: 10px; border: 2px solid {c['border']};
+        }}
+        {prefix}.step-item .step-circle.active {{
+            background: linear-gradient(135deg, {c['accent']}, {c['purple']});
+            color: #ffffff; border-color: {c['accent']};
+        }}
+        {prefix}.step-item .step-label {{ font-size: 13px; color: {c['text_muted']}; font-weight: 500; }}
+        {prefix}.step-item .step-label.active {{ color: {c['accent']}; font-weight: 700; }}
+        
+        /* Buttons */
+        {prefix}.stButton > button {{
+            background: linear-gradient(135deg, {c['accent']}, {c['purple']}) !important;
+            color: #ffffff !important; border: none !important; border-radius: 10px !important;
+            font-weight: 700 !important; font-size: 14px !important; padding: 12px 24px !important;
+        }}
+        
+        /* Expander */
+        {prefix}.streamlit-expanderHeader {{
+            background: {c['card']} !important; border: 1px solid {c['border']} !important;
+            border-radius: 10px !important; color: {c['text_primary']} !important;
+        }}
+        {prefix}.streamlit-expanderContent {{
+            background: {c['bg']} !important; border: 1px solid {c['border']} !important;
+            border-top: none !important;
+        }}
+        
+        /* Footer */
+        {prefix}.footer-text {{ text-align: center; color: {c['footer']}; font-size: 12px; padding: 16px 0; }}
+        
+        /* Analysis Summary */
+        {prefix}.analysis-summary {{
+            display: flex; gap: 24px; flex-wrap: wrap; padding: 16px 20px;
+            background: {c['card']}; border: 1px solid {c['border']}; border-radius: 12px;
+        }}
+        {prefix}.analysis-item {{ display: flex; align-items: center; gap: 8px; }}
+        {prefix}.analysis-label {{ font-size: 13px; color: {c['text_muted']}; }}
+        {prefix}.analysis-value {{ font-size: 13px; color: {c['text_primary']}; font-weight: 600; }}
+        
+        /* Scrollbar */
+        {prefix}::-webkit-scrollbar {{ width: 6px; }}
+        {prefix}::-webkit-scrollbar-track {{ background: {c['bg']}; }}
+        {prefix}::-webkit-scrollbar-thumb {{ background: {c['border']}; border-radius: 3px; }}
+        """
+    
+    return f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    /* ===== Default Dark Theme ===== */
+    html, body, .stApp, #root, section[data-testid="stAppViewContainer"] {{
+        background: {dark['bg']} !important;
+        color: {dark['text_secondary']} !important;
+    }}
+    .main .block-container, .main {{ background: {dark['bg']} !important; }}
+    [data-testid="stSidebar"] {{ background: {dark['bg_secondary']} !important; }}
+    .metric-card {{ background: {dark['card']} !important; }}
+    .landing-hero {{ background: {dark['bg']} !important; }}
+    .step-guide {{ background: {dark['card']} !important; }}
+    
+    /* ===== Light Theme (when Streamlit sets data-theme="light") ===== */
+    .stApp[data-theme="light"],
+    .stApp[data-theme="light"] html,
+    .stApp[data-theme="light"] body,
+    .stApp[data-theme="light"] #root,
+    .stApp[data-theme="light"] section[data-testid="stAppViewContainer"] {{
+        background: {light['bg']} !important;
+        color: {light['text_secondary']} !important;
+    }}
+    .stApp[data-theme="light"] .main .block-container,
+    .stApp[data-theme="light"] .main {{
+        background: {light['bg']} !important;
+    }}
+    .stApp[data-theme="light"] [data-testid="stSidebar"] {{
+        background: {light['bg_secondary']} !important;
+    }}
+    .stApp[data-theme="light"] .metric-card {{
+        background: {light['card']} !important;
+    }}
+    .stApp[data-theme="light"] .landing-hero {{
+        background: {light['bg']} !important;
+    }}
+    .stApp[data-theme="light"] .step-guide {{
+        background: {light['card']} !important;
+    }}
+    
+    /* ===== Common Styles ===== */
+    .stApp {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }}
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {{ border-right: 1px solid {dark['border']}; }}
+    .stApp[data-theme="light"] [data-testid="stSidebar"] {{ border-right-color: {light['border']}; }}
+    
+    [data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] label {{ font-size: 13px; }}
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {dark['text_primary']}; }}
+    .stApp[data-theme="light"] [data-testid="stSidebar"] h1,
+    .stApp[data-theme="light"] [data-testid="stSidebar"] h2,
+    .stApp[data-theme="light"] [data-testid="stSidebar"] h3 {{ color: {light['text_primary']}; }}
+    
+    /* Brand Header */
+    .brand-header {{ display: flex; align-items: center; gap: 12px; padding: 20px 16px; margin-bottom: 24px; }}
+    .brand-header .logo-icon {{ width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; }}
+    .brand-header .brand-text {{ font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }}
+    .brand-header .brand-sub {{ font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }}
+    
+    .brand-header .logo-icon {{ background: linear-gradient(135deg, {dark['accent']}, {dark['purple']}); }}
+    .brand-header .brand-text {{ color: {dark['text_primary']}; }}
+    .brand-header .brand-sub {{ color: {dark['text_secondary']}; }}
+    .brand-header {{ border-bottom: 1px solid {dark['border']}; }}
+    
+    .stApp[data-theme="light"] .brand-header .logo-icon {{ background: linear-gradient(135deg, {light['accent']}, {light['purple']}); }}
+    .stApp[data-theme="light"] .brand-header .brand-text {{ color: {light['text_primary']}; }}
+    .stApp[data-theme="light"] .brand-header .brand-sub {{ color: {light['text_secondary']}; }}
+    .stApp[data-theme="light"] .brand-header {{ border-bottom-color: {light['border']}; }}
+    
+    /* Section Title */
+    .section-title {{ font-size: 20px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }}
+    .section-title {{ color: {dark['text_primary']}; }}
+    .stApp[data-theme="light"] .section-title {{ color: {light['text_primary']}; }}
+    
+    .section-title .badge-live {{ font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }}
+    .section-title .badge-live {{ background: {dark['accent_bg']}; color: {dark['accent']}; border: 1px solid {dark['accent_border']}; }}
+    .stApp[data-theme="light"] .section-title .badge-live {{ background: {light['accent_bg']}; color: {light['accent']}; border-color: {light['accent_border']}; }}
+    
+    /* Metric Cards */
+    .metric-card {{ border: 1px solid {dark['border']}; border-radius: 12px; padding: 20px; box-shadow: {dark['shadow']}; }}
+    .metric-card .metric-label {{ color: {dark['text_secondary']}; font-size: 13px; font-weight: 500; margin-bottom: 8px; }}
+    .metric-card .metric-value {{ color: {dark['text_primary']}; font-size: 28px; font-weight: 700; margin-bottom: 8px; }}
+    .metric-card .metric-change {{ font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }}
+    .metric-card .metric-change.up {{ color: {dark['accent']}; }}
+    
+    .stApp[data-theme="light"] .metric-card {{ border-color: {light['border']}; box-shadow: {light['shadow']}; }}
+    .stApp[data-theme="light"] .metric-card .metric-label {{ color: {light['text_secondary']}; }}
+    .stApp[data-theme="light"] .metric-card .metric-value {{ color: {light['text_primary']}; }}
+    .stApp[data-theme="light"] .metric-card .metric-change.up {{ color: {light['accent']}; }}
+    
+    /* Landing Hero */
+    .landing-hero {{ text-align: center; padding: 80px 0 60px; }}
+    .landing-hero .hero-icon {{ width: 80px; height: 80px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 24px; color: #ffffff !important; }}
+    .landing-hero .hero-title {{ font-size: 32px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }}
+    .landing-hero .hero-subtitle {{ font-size: 15px; max-width: 480px; margin: 0 auto; line-height: 1.7; }}
+    
+    .landing-hero .hero-icon {{ background: linear-gradient(135deg, {dark['accent']}, {dark['purple']}); }}
+    .landing-hero .hero-title {{ color: {dark['text_primary']}; }}
+    .landing-hero .hero-subtitle {{ color: {dark['text_secondary']}; }}
+    
+    .stApp[data-theme="light"] .landing-hero .hero-icon {{ background: linear-gradient(135deg, {light['accent']}, {light['purple']}); }}
+    .stApp[data-theme="light"] .landing-hero .hero-title {{ color: {light['text_primary']}; }}
+    .stApp[data-theme="light"] .landing-hero .hero-subtitle {{ color: {light['text_secondary']}; }}
+    
+    /* Step Guide */
+    .step-guide {{ border: 1px solid {dark['border']}; border-radius: 16px; padding: 32px; box-shadow: {dark['shadow']}; }}
+    .stApp[data-theme="light"] .step-guide {{ border-color: {light['border']}; box-shadow: {light['shadow']}; }}
+    
+    .step-item .step-circle {{ width: 52px; height: 52px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; margin-bottom: 10px; }}
+    .step-item .step-circle {{ background: {dark['bg']}; color: {dark['text_muted']}; border: 2px solid {dark['border']}; }}
+    .step-item .step-circle.active {{ background: linear-gradient(135deg, {dark['accent']}, {dark['purple']}); color: #ffffff; border-color: {dark['accent']}; }}
+    .step-item .step-label {{ font-size: 13px; font-weight: 500; }}
+    .step-item .step-label {{ color: {dark['text_muted']}; }}
+    .step-item .step-label.active {{ color: {dark['accent']}; font-weight: 700; }}
+    
+    .stApp[data-theme="light"] .step-item .step-circle {{ background: {light['bg']}; color: {light['text_muted']}; border-color: {light['border']}; }}
+    .stApp[data-theme="light"] .step-item .step-circle.active {{ background: linear-gradient(135deg, {light['accent']}, {light['purple']}); border-color: {light['accent']}; }}
+    .stApp[data-theme="light"] .step-item .step-label {{ color: {light['text_muted']}; }}
+    .stApp[data-theme="light"] .step-item .step-label.active {{ color: {light['accent']}; }}
+    
+    /* Buttons */
+    .stButton > button {{ border: none !important; border-radius: 10px !important; font-weight: 700 !important; font-size: 14px !important; padding: 12px 24px !important; }}
+    .stButton > button {{ background: linear-gradient(135deg, {dark['accent']}, {dark['purple']}) !important; color: #ffffff !important; }}
+    .stApp[data-theme="light"] .stButton > button {{ background: linear-gradient(135deg, {light['accent']}, {light['purple']}) !important; }}
+    
+    /* Footer */
+    .footer-text {{ text-align: center; font-size: 12px; padding: 16px 0; }}
+    .footer-text {{ color: {dark['footer']}; }}
+    .stApp[data-theme="light"] .footer-text {{ color: {light['footer']}; }}
+    </style>
+    """
+
+# ============================
+#  PAGE CONFIG
+# ============================
 st.set_page_config(
-    page_title="AI岗位工具配置分析系统",
-    page_icon="🎯",
+    page_title="SectorAI - AI岗位工具配置",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
-<style>
-    .main-title {
-        font-size: 2.2rem;
-        font-weight: bold;
-        color: #1a1a2e;
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-    .sub-title {
-        font-size: 1rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .step-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 15px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-    .result-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        border-left: 5px solid #667eea;
-    }
-    .tool-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        text-align: center;
-        border: 2px solid #e0e0e0;
-    }
-    .tool-card:hover {
-        border-color: #667eea;
-        transform: translateY(-2px);
-        transition: all 0.3s;
-    }
-    .path-box {
-        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-    }
-    .metric-box {
-        background: white;
-        border-radius: 10px;
-        padding: 1.5rem;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    .recommend-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .level-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: bold;
-        color: white;
-        margin: 2px;
-    }
-    .essential { background: #e74c3c; }
-    .recommended { background: #f39c12; }
-    .optional { background: #27ae60; }
-</style>
-""", unsafe_allow_html=True)
+st.markdown(get_theme_css(), unsafe_allow_html=True)
 
-INDUSTRIES = [
-    "互联网/IT", "电子商务", "游戏", "广告/公关/会展", 
-    "媒体/出版", "教育/培训", "金融/投资", "房地产/建筑",
-    "消费品/零售", "制造业", "物流/运输", "医疗/健康",
-    "酒店/旅游", "能源/环保", "政府/非营利", "其他"
-]
-
-JOB_POSITIONS = [
-    "创意总监", "设计总监", "视觉设计师", "UI设计师", "UX设计师",
-    "产品经理", "运营经理", "市场经理", "品牌经理", "内容策划",
-    "视频剪辑", "动画师", "插画师", "摄影师", "文案策划",
-    "数据分析师", "用户研究员", "项目经理", "技术总监", "前端开发"
-]
-
-COMPANY_SCALES = ["小型（1-50人）", "中型（50-500人）", "大型（500人以上）"]
-
-BUSINESS_SCOPES = [
-    "品牌设计", "产品设计", "营销创意", "内容生产",
-    "用户增长", "电商平台", "社交媒体", "视频制作",
-    "游戏美术", "UI/UX设计", "全栈服务", "其他"
-]
-
-MOCK_JOBS = [
-    {
-        "title": "AI设计总监",
-        "company": "创意广告公司",
-        "salary": "30-50K",
-        "location": "上海",
-        "experience": "5-10年",
-        "education": "本科",
-        "detail": "负责AI设计团队管理，精通Midjourney、Stable Diffusion、DALL-E等AI绘图工具，具备团队管理能力",
-        "tags": ["AI设计", "团队管理", "Midjourney"]
-    },
-    {
-        "title": "AI视觉设计师",
-        "company": "科技公司",
-        "salary": "20-35K",
-        "location": "北京",
-        "experience": "3-5年",
-        "education": "本科",
-        "detail": "使用Runway、Pika、Sora进行视频创作，AIGC内容生产，熟悉Firefly、Photoshop AI",
-        "tags": ["AI视频", "AIGC", "Runway"]
-    },
-    {
-        "title": "AI创意设计师",
-        "company": "互联网公司",
-        "salary": "25-40K",
-        "location": "深圳",
-        "experience": "3-5年",
-        "education": "本科",
-        "detail": "精通Figma AI、Canva AI、Nano Banana等AI设计工具，具备创意策划能力",
-        "tags": ["AI设计", "Figma", "Canva"]
-    },
-    {
-        "title": "AI视频制作",
-        "company": "传媒公司",
-        "salary": "15-25K",
-        "location": "杭州",
-        "experience": "1-3年",
-        "education": "大专",
-        "detail": "使用剪映AI、可灵、HeyGen等工具进行视频制作和数字人创作",
-        "tags": ["视频AI", "剪映", "数字人"]
-    },
-    {
-        "title": "AI设计主管",
-        "company": "电商平台",
-        "salary": "25-35K",
-        "location": "广州",
-        "experience": "3-5年",
-        "education": "本科",
-        "detail": "管理AI设计团队，使用ComfyUI、ControlNet、LoRA等工具进行批量生产",
-        "tags": ["AI管理", "ComfyUI", "批量生产"]
-    },
-    {
-        "title": "AI设计师",
-        "company": "设计公司",
-        "salary": "12-20K",
-        "location": "成都",
-        "experience": "1-3年",
-        "education": "本科",
-        "detail": "使用ChatGPT、文心一言、Kimi等AI工具辅助设计工作",
-        "tags": ["AI工具", "ChatGPT", "文心一言"]
-    }
-]
-
-AI_TOOLS = {
-    "图像生成": [
-        {"name": "Midjourney", "frequency": 50, "cost": 60, "difficulty": "中等", "desc": "视觉冲击力首选，艺术感天花板"},
-        {"name": "Stable Diffusion", "frequency": 40, "cost": 0, "difficulty": "较高", "desc": "开源灵活，可本地部署"},
-        {"name": "DALL-E", "frequency": 30, "cost": 20, "difficulty": "低", "desc": "OpenAI出品，易用性强"},
-        {"name": "Firefly", "frequency": 25, "cost": 0, "difficulty": "低", "desc": "Adobe生态，版权安全"}
-    ],
-    "视频生成": [
-        {"name": "Runway", "frequency": 35, "cost": 35, "difficulty": "中等", "desc": "视频AI全能工具"},
-        {"name": "Pika", "frequency": 20, "cost": 0, "difficulty": "低", "desc": "视频生成新秀"},
-        {"name": "Sora", "frequency": 15, "cost": 0, "difficulty": "未知", "desc": "OpenAI视频模型"},
-        {"name": "HeyGen", "frequency": 10, "cost": 50, "difficulty": "低", "desc": "数字人视频生成"},
-        {"name": "可灵", "frequency": 10, "cost": 0, "difficulty": "低", "desc": "国产AI视频工具"},
-        {"name": "剪映AI", "frequency": 8, "cost": 0, "difficulty": "低", "desc": "国内视频剪辑工具"}
-    ],
-    "设计工具": [
-        {"name": "Figma AI", "frequency": 30, "cost": 0, "difficulty": "低", "desc": "设计协作平台"},
-        {"name": "Canva AI", "frequency": 20, "cost": 0, "difficulty": "极低", "desc": "易用设计工具"},
-        {"name": "Nano Banana", "frequency": 5, "cost": 40, "difficulty": "中等", "desc": "AI设计协作工具"},
-        {"name": "Lovart", "frequency": 3, "cost": 35, "difficulty": "中等", "desc": "AI视频结构分析"}
-    ],
-    "工作流": [
-        {"name": "ComfyUI", "frequency": 15, "cost": 0, "difficulty": "高", "desc": "可视化AI工作流"},
-        {"name": "ControlNet", "frequency": 12, "cost": 0, "difficulty": "高", "desc": "精确控制AI生成"}
-    ],
-    "通用AI": [
-        {"name": "ChatGPT", "frequency": 25, "cost": 20, "difficulty": "低", "desc": "通用AI助手"},
-        {"name": "文心一言", "frequency": 15, "cost": 0, "difficulty": "低", "desc": "百度AI助手"},
-        {"name": "Kimi", "frequency": 10, "cost": 0, "difficulty": "低", "desc": "长文本处理强"}
-    ]
-}
-
-if 'step' not in st.session_state:
-    st.session_state.step = 1
+# ============================
+#  SESSION STATE
+# ============================
 if 'search_results' not in st.session_state:
     st.session_state.search_results = None
-if 'company_info' not in st.session_state:
-    st.session_state.company_info = {}
-if 'recommendations' not in st.session_state:
-    st.session_state.recommendations = None
+if 'search_clicked' not in st.session_state:
+    st.session_state.search_clicked = False
 
-def render_step1():
-    st.markdown('<div class="step-box">', unsafe_allow_html=True)
-    st.markdown("### 第一步：选择AI岗位")
-    st.markdown("选择您的行业和目标AI岗位，系统将自动搜索相关招聘信息并分析所需AI工具")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🏢 所属行业")
-        industry = st.selectbox(
-            "选择行业",
-            options=INDUSTRIES,
-            key="industry"
-        )
-        custom_industry = st.text_input("或自定义行业", placeholder="例如：广告/公关")
-        final_industry = custom_industry if custom_industry else industry
-    
-    with col2:
-        st.subheader("💼 AI岗位")
-        position = st.selectbox(
-            "选择岗位",
-            options=JOB_POSITIONS,
-            key="position"
-        )
-        custom_position = st.text_input("或自定义岗位", placeholder="例如：创意总监")
-        final_position = custom_position if custom_position else position
-    
-    if final_industry and final_position:
-        search_keyword = f"AI{final_position}"
-        
-        st.info(f"🔍 系统将搜索: **{search_keyword}** (行业: {final_industry})")
-        
-        if st.button("🚀 开始搜索分析", type="primary", use_container_width=True):
-            with st.spinner("正在分析招聘数据..."):
-                import time
-                time.sleep(2)
-                
-                st.session_state.search_results = {
-                    'keyword': search_keyword,
-                    'industry': final_industry,
-                    'position': final_position,
-                    'jobs': MOCK_JOBS,
-                    'tools': AI_TOOLS,
-                    'stats': {
-                        'total': len(MOCK_JOBS),
-                        'valid': 5,
-                        'tools_count': sum(len(tools) for tools in AI_TOOLS.values())
-                    }
-                }
-                
-                st.success("✅ 搜索完成！")
-                st.rerun()
+# ============================
+#  DATABASE
+# ============================
+@st.cache_data
+def load_database():
+    try:
+        with open(DB_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"industries": {}}
 
-def render_step1_results():
-    if not st.session_state.search_results:
-        return
-    
-    results = st.session_state.search_results
-    
-    st.markdown('<div class="step-box">', unsafe_allow_html=True)
-    st.markdown("### 第一步结果：AI工具汇总分析")
-    st.markdown(f"基于 **{results['stats']['total']}** 个岗位分析，发现 **{results['stats']['tools_count']}** 种AI工具")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("分析岗位数", results['stats']['total'])
-    with col2:
-        st.metric("AI工具种类", results['stats']['tools_count'])
-    with col3:
-        st.metric("有效岗位", results['stats']['valid'])
-    with col4:
-        st.metric("搜索关键词", results['keyword'])
-    
-    st.markdown("---")
-    st.markdown("### 🛠️ AI工具分类统计")
-    
-    for category, tools in results['tools'].items():
-        with st.container():
-            st.markdown(f"#### 📁 {category} ({len(tools)}个工具)")
-            cols = st.columns(min(len(tools), 4))
-            
-            for idx, tool in enumerate(tools):
-                with cols[idx % len(cols)]:
-                    st.markdown(f"""
-                    <div class="tool-card">
-                        <h4 style="margin:0;color:#1a1a2e;">{tool['name']}</h4>
-                        <p style="margin:0.5rem 0;font-size:0.9rem;color:#666;">{tool['desc']}</p>
-                        <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#888;">
-                            <span>📊 {tool['frequency']}%</span>
-                            <span>💰 ${tool['cost']}</span>
-                        </div>
-                        <div style="margin-top:0.5rem;">
-                            <span class="level-badge {'essential' if tool['frequency'] >= 30 else 'recommended' if tool['frequency'] >= 15 else 'optional'}">
-                                {'必备' if tool['frequency'] >= 30 else '推荐' if tool['frequency'] >= 15 else '可选'}
-                            </span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("### 📊 岗位数据预览")
-    
-    job_data = []
-    for job in results['jobs'][:5]:
-        job_data.append({
-            '岗位名称': job['title'],
-            '公司': job['company'],
-            '薪资': job['salary'],
-            '地点': job['location'],
-            '经验要求': job['experience'],
-            '标签': ', '.join(job['tags'])
-        })
-    
-    df = pd.DataFrame(job_data)
-    st.dataframe(df, use_container_width=True)
-    
-    if st.button("➡️ 进入第二步：个性化推荐", type="primary", use_container_width=True):
-        st.session_state.step = 2
-        st.rerun()
+DB = load_database()
 
-def render_step2():
-    st.markdown('<div class="step-box">', unsafe_allow_html=True)
-    st.markdown("### 第二步：配置公司信息")
-    st.markdown("告诉我们您的公司情况，为您生成个性化的AI工具配置方案")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.subheader("🏢 所属行业")
-        company_industry = st.selectbox(
-            "公司所在行业",
-            options=INDUSTRIES,
-            index=INDUSTRIES.index(st.session_state.search_results['industry']) if st.session_state.search_results['industry'] in INDUSTRIES else 0,
-            key="company_industry"
-        )
-    
-    with col2:
-        st.subheader("📊 企业规模")
-        company_scale = st.selectbox(
-            "选择企业规模",
-            options=COMPANY_SCALES,
-            key="company_scale"
-        )
-    
-    with col3:
-        st.subheader("🎯 业务范围")
-        business_scope = st.multiselect(
-            "选择业务范围（可多选）",
-            options=BUSINESS_SCOPES,
-            default=["品牌设计"],
-            key="business_scope"
-        )
-    
-    st.markdown("---")
-    st.subheader("📋 岗位需求详情")
-    
-    col4, col5 = st.columns(2)
-    with col4:
-        team_size = st.number_input("团队人数", min_value=1, max_value=100, value=5)
-        budget_level = st.select_slider(
-            "预算水平",
-            options=["低", "中", "高"],
-            value="中"
-        )
-    
-    with col5:
-        priority = st.multiselect(
-            "优先需求",
-            options=["效率提升", "质量优化", "成本控制", "创新探索", "团队培训"],
-            default=["效率提升"]
-        )
-        timeline = st.select_slider(
-            "实施周期",
-            options=["1个月内", "1-3个月", "3-6个月", "6个月以上"],
-            value="1-3个月"
-        )
-    
-    if st.button("🎯 生成个性化推荐方案", type="primary", use_container_width=True):
-        with st.spinner("正在生成推荐方案..."):
-            import time
-            time.sleep(2)
-            
-            st.session_state.company_info = {
-                'industry': company_industry,
-                'scale': company_scale,
-                'scope': business_scope,
-                'teamSize': team_size,
-                'budget': budget_level,
-                'priority': priority,
-                'timeline': timeline
-            }
-            
-            st.session_state.recommendations = generate_recommendations(company_scale, budget_level)
-            
-            st.success("✅ 个性化推荐方案生成完成！")
-            st.rerun()
+def get_all_industries():
+    return list(DB.get("industries", {}).keys())
 
-def generate_recommendations(scale, budget):
-    scale_factor = {"低": 0.5, "中": 1.0, "高": 1.5}[budget]
-    
-    recommendations = {
-        "设计总监": {
-            "essential": [
-                {"name": "Midjourney", "cost": 60, "reason": "视觉创意核心工具", "path": "概念设计 → 视觉探索 → 方案输出"},
-                {"name": "Stable Diffusion", "cost": 0, "reason": "本地部署，隐私安全", "path": "定制模型 → 批量生成 → 精细调整"},
-                {"name": "Runway", "cost": 35, "reason": "视频生成全能", "path": "视频创意 → AI生成 → 后期优化"},
-                {"name": "Figma AI", "cost": 0, "reason": "团队协作设计", "path": "原型设计 → AI辅助 → 团队评审"},
-                {"name": "ChatGPT", "cost": 20, "reason": "文案与策略", "path": "需求分析 → 文案生成 → 策略优化"}
-            ],
-            "recommended": [
-                {"name": "DALL-E", "cost": 20, "reason": "快速原型", "path": "快速出图 → 方案验证 → 迭代优化"},
-                {"name": "Firefly", "cost": 0, "reason": "Adobe生态集成", "path": "设计制作 → AI增强 → 版权输出"},
-                {"name": "Pika", "cost": 0, "reason": "短视频快速生成", "path": "脚本输入 → AI生成 → 快速发布"}
-            ],
-            "skills": [
-                {"name": "AI战略与工具选型", "level": "专家", "time": "持续学习", "desc": "掌握各类AI工具优劣，制定团队工具栈"},
-                {"name": "高阶提示词工程", "level": "专家", "time": "2-3个月", "desc": "精通复杂提示词设计，实现精准控制"},
-                {"name": "AI工作流设计", "level": "高级", "time": "1-2个月", "desc": "设计高效AI辅助设计流程"},
-                {"name": "团队AI能力建设", "level": "高级", "time": "持续", "desc": "培养团队AI技能，建立知识体系"}
-            ],
-            "cost": int(135 * scale_factor)
-        },
-        "设计主管": {
-            "essential": [
-                {"name": "Stable Diffusion", "cost": 0, "reason": "批量生产主力", "path": "模型配置 → 批量生成 → 质量把控"},
-                {"name": "Figma AI", "cost": 0, "reason": "团队设计协作", "path": "设计规范 → 团队协作 → 版本管理"},
-                {"name": "Runway", "cost": 35, "reason": "视频制作", "path": "素材准备 → AI生成 → 剪辑输出"},
-                {"name": "剪映AI", "cost": 0, "reason": "国内视频工具", "path": "素材导入 → AI剪辑 → 快速输出"}
-            ],
-            "recommended": [
-                {"name": "Midjourney", "cost": 60, "reason": "高质量概念图", "path": "创意输入 → AI生成 → 筛选优化"},
-                {"name": "Canva AI", "cost": 0, "reason": "快速设计", "path": "模板选择 → AI调整 → 快速输出"},
-                {"name": "Pika", "cost": 0, "reason": "短视频", "path": "内容输入 → AI生成 → 发布准备"},
-                {"name": "ComfyUI", "cost": 0, "reason": "工作流自动化", "path": "工作流搭建 → 自动化运行 → 批量输出"}
-            ],
-            "skills": [
-                {"name": "中端AI工具应用", "level": "熟练", "time": "1-2个月", "desc": "熟练运用主流AI工具完成设计任务"},
-                {"name": "批量生产管理", "level": "熟练", "time": "2-4周", "desc": "管理AI辅助的批量设计生产"},
-                {"name": "提示词优化", "level": "进阶", "time": "3-4周", "desc": "编写高效提示词，提升产出质量"},
-                {"name": "AI产出审核", "level": "熟练", "time": "2-3周", "desc": "审核AI生成内容的质量与合规性"}
-            ],
-            "cost": int(95 * scale_factor)
-        },
-        "设计专员": {
-            "essential": [
-                {"name": "Canva AI", "cost": 0, "reason": "易上手设计工具", "path": "模板选择 → 内容替换 → 快速输出"},
-                {"name": "剪映AI", "cost": 0, "reason": "视频剪辑", "path": "素材导入 → AI剪辑 → 效果调整"},
-                {"name": "可灵", "cost": 0, "reason": "国产AI视频", "path": "文字描述 → AI生成 → 简单编辑"},
-                {"name": "ChatGPT", "cost": 20, "reason": "文案辅助", "path": "需求输入 → 文案生成 → 修改使用"}
-            ],
-            "recommended": [
-                {"name": "Figma", "cost": 0, "reason": "UI设计基础", "path": "界面设计 → 组件使用 → 原型输出"},
-                {"name": "文心一言", "cost": 0, "reason": "中文AI助手", "path": "中文输入 → AI生成 → 内容调整"},
-                {"name": "即梦", "cost": 0, "reason": "AI图像生成", "path": "文字描述 → AI绘图 → 简单后期"}
-            ],
-            "skills": [
-                {"name": "基础AI工具操作", "level": "入门", "time": "1-2周", "desc": "掌握基础AI设计工具的使用"},
-                {"name": "简单提示词编写", "level": "入门", "time": "1周", "desc": "编写简单有效的AI提示词"},
-                {"name": "AI辅助设计执行", "level": "入门", "time": "2-3周", "desc": "使用AI工具辅助完成设计任务"},
-                {"name": "设计基础技能", "level": "基础", "time": "持续", "desc": "保持传统设计技能，结合AI工具"}
-            ],
-            "cost": int(20 * scale_factor)
-        }
-    }
-    
+def get_categories_for_industry(industry):
+    ind = DB.get("industries", {}).get(industry, {})
+    return list(ind.get("categories", {}).keys())
+
+def get_positions_for_category(industry, category):
+    cat = DB.get("industries", {}).get(industry, {}).get("categories", {}).get(category, {})
+    return list(cat.get("positions", {}).keys())
+
+def get_position_data(industry, category, position):
+    return DB.get("industries", {}).get(industry, {}).get("categories", {}).get(category, {}).get("positions", {}).get(position, {})
+
+def get_company_scales():
+    return DB.get("companyScales", ["小型", "中型", "大型"])
+
+def get_business_types():
+    return DB.get("businessTypes", [])
+
+def get_departments():
+    return DB.get("departments", [])
+
+TOOL_DB = {
+    'ChatGPT': {'cost': 20, 'learn': '3-5天', 'best': ['内容创作', '代码辅助', '数据分析'], 'difficulty': '低', 'free': True},
+    'Claude': {'cost': 20, 'learn': '3-5天', 'best': ['长文档分析', '代码辅助', '学术写作'], 'difficulty': '低', 'free': True},
+    'GitHub Copilot': {'cost': 19, 'learn': '1-2周', 'best': ['代码补全', '代码审查', '单元测试'], 'difficulty': '低', 'free': False},
+    'Cursor': {'cost': 0, 'learn': '1-2周', 'best': ['AI编程', '代码重构', '项目理解'], 'difficulty': '低', 'free': True},
+    '通义灵码': {'cost': 0, 'learn': '1-2周', 'best': ['中文编程', '代码生成', '注释生成'], 'difficulty': '低', 'free': True},
+    'Midjourney': {'cost': 60, 'learn': '2-4周', 'best': ['创意设计', '品牌视觉', '概念艺术'], 'difficulty': '中', 'free': False},
+    'Stable Diffusion': {'cost': 0, 'learn': '4-8周', 'best': ['定制化生成', '批量生产', '隐私项目'], 'difficulty': '高', 'free': True},
+    'Figma': {'cost': 12, 'learn': '2-3周', 'best': ['UI设计', '产品原型', '协作设计'], 'difficulty': '低', 'free': True},
+    'Canva': {'cost': 12, 'learn': '2-3天', 'best': ['营销物料', '社交媒体', '快速设计'], 'difficulty': '极低', 'free': True},
+    '剪映': {'cost': 0, 'learn': '3-5天', 'best': ['短视频制作', '抖音内容', '快速剪辑'], 'difficulty': '极低', 'free': True},
+    'CapCut': {'cost': 0, 'learn': '3-5天', 'best': ['海外短视频', 'TikTok', '移动剪辑'], 'difficulty': '极低', 'free': True},
+    'Notion': {'cost': 8, 'learn': '1-2周', 'best': ['文档管理', '项目管理', '知识库'], 'difficulty': '低', 'free': True},
+    'Notion AI': {'cost': 10, 'learn': '1-2周', 'best': ['AI写作', '内容总结', '智能问答'], 'difficulty': '低', 'free': False},
+    '飞书': {'cost': 10, 'learn': '1-2周', 'best': ['团队协作', '办公协同', '文档管理'], 'difficulty': '低', 'free': True},
+    '钉钉': {'cost': 10, 'learn': '1-2周', 'best': ['企业通讯', '考勤管理', '审批流程'], 'difficulty': '低', 'free': True},
+    'Tableau': {'cost': 70, 'learn': '3-4周', 'best': ['数据可视化', '商业智能', '仪表盘'], 'difficulty': '中', 'free': False},
+    'Power BI': {'cost': 49, 'learn': '3-4周', 'best': ['数据仪表盘', '报表分析', 'Excel集成'], 'difficulty': '中', 'free': False},
+    'Python': {'cost': 0, 'learn': '8-12周', 'best': ['数据分析', '自动化脚本', '机器学习'], 'difficulty': '高', 'free': True},
+    'SQL': {'cost': 0, 'learn': '4-6周', 'best': ['数据库查询', '数据分析', '报表生成'], 'difficulty': '中', 'free': True},
+    'Gamma': {'cost': 20, 'learn': '1-2周', 'best': ['演示文稿', 'PPT制作', '内容展示'], 'difficulty': '低', 'free': True},
+    'Tome': {'cost': 20, 'learn': '1-2周', 'best': ['故事化演示', '营销材料', '方案展示'], 'difficulty': '低', 'free': True},
+    '神策数据': {'cost': 100, 'learn': '4-8周', 'best': ['用户行为分析', '数据驱动', '精细化运营'], 'difficulty': '高', 'free': False},
+    'GrowingIO': {'cost': 80, 'learn': '4-8周', 'best': ['用户增长', '行为分析', '营销归因'], 'difficulty': '高', 'free': False},
+    'Mixpanel': {'cost': 20, 'learn': '2-4周', 'best': ['产品分析', '用户漏斗', 'A/B测试'], 'difficulty': '中', 'free': True},
+    'HubSpot': {'cost': 50, 'learn': '3-4周', 'best': ['客户管理', '营销自动化', '销售管理'], 'difficulty': '中', 'free': True},
+    'Salesforce': {'cost': 100, 'learn': '6-8周', 'best': ['客户管理', '销售自动化', '企业CRM'], 'difficulty': '高', 'free': False},
+    '文心一言': {'cost': 0, 'learn': '2-3天', 'best': ['中文内容', '知识问答', '创意写作'], 'difficulty': '低', 'free': True},
+    '通义千问': {'cost': 0, 'learn': '2-3天', 'best': ['中文对话', '代码生成', '文档处理'], 'difficulty': '低', 'free': True},
+    'Kimi': {'cost': 0, 'learn': '1-2天', 'best': ['长文档分析', '内容总结', '知识管理'], 'difficulty': '低', 'free': True},
+    '豆包': {'cost': 0, 'learn': '1-2天', 'best': ['日常对话', '创意写作', '信息查询'], 'difficulty': '低', 'free': True},
+    'Codeium': {'cost': 15, 'learn': '1-2周', 'best': ['代码补全', '多语言支持', 'IDE集成'], 'difficulty': '低', 'free': True},
+    '文心快码': {'cost': 0, 'learn': '1-2周', 'best': ['代码生成', '百度生态', '中文注释'], 'difficulty': '低', 'free': True},
+    '飞书多维表格': {'cost': 0, 'learn': '3-5天', 'best': ['数据管理', '项目管理', '协作表格'], 'difficulty': '低', 'free': True},
+    '腾讯文档': {'cost': 0, 'learn': '1-2天', 'best': ['在线协作', '文档共享', '实时编辑'], 'difficulty': '低', 'free': True},
+    '石墨文档': {'cost': 0, 'learn': '1-2天', 'best': ['在线协作', '表格处理', '幻灯片'], 'difficulty': '低', 'free': True},
+    'Excel': {'cost': 0, 'learn': '1-2周', 'best': ['数据处理', '报表制作', '统计分析'], 'difficulty': '低', 'free': True},
+    '问卷星': {'cost': 10, 'learn': '1-3天', 'best': ['问卷调查', '数据收集', '在线考试'], 'difficulty': '低', 'free': True},
+    'XMind': {'cost': 10, 'learn': '1-3天', 'best': ['思维导图', '头脑风暴', '知识梳理'], 'difficulty': '低', 'free': True},
+    'ProcessOn': {'cost': 10, 'learn': '1-3天', 'best': ['流程图', '组织架构', 'UML图'], 'difficulty': '低', 'free': True},
+    'Coze': {'cost': 0, 'learn': '3-5天', 'best': ['AI Bot搭建', '自动化工作流', '智能客服'], 'difficulty': '低', 'free': True},
+    'FastGPT': {'cost': 0, 'learn': '1-2周', 'best': ['知识库问答', 'AI应用搭建', '私有部署'], 'difficulty': '中', 'free': True},
+    'WorkBuddy': {'cost': 0, 'learn': '1-2周', 'best': ['智能办公', '任务管理', '日程安排'], 'difficulty': '低', 'free': True},
+}
+
+DEPT_ADJUST = {
+    '技术研发部': {'boost': ['GitHub Copilot', 'Cursor', '通义灵码', '文心快码', 'Codeium'], 'penalty': ['Canva', 'Midjourney', '剪映']},
+    '产品设计部': {'boost': ['Figma', 'Midjourney', 'Canva', 'Stable Diffusion', 'Notion'], 'penalty': ['Tabnine']},
+    '市场运营部': {'boost': ['ChatGPT', 'Canva', '剪映', 'Gamma', 'Tome', 'HubSpot', '神策数据'], 'penalty': ['GitHub Copilot', 'Cursor']},
+    '销售部': {'boost': ['Salesforce', 'HubSpot', '飞书', '钉钉', 'ChatGPT'], 'penalty': ['Midjourney', 'Stable Diffusion']},
+    '人力资源部': {'boost': ['企业微信', '问卷星', 'ChatGPT', 'Excel'], 'penalty': ['Tableau', 'Power BI']},
+    '财务部': {'boost': ['Excel', 'Python', 'Tableau', 'Power BI', 'SQL'], 'penalty': ['Midjourney', '剪映', 'Canva']},
+    '行政部': {'boost': ['飞书', '钉钉', '企业微信', '腾讯文档', 'Excel'], 'penalty': ['GitHub Copilot', 'Salesforce']},
+    '客户服务部': {'boost': ['飞书', '钉钉', 'ChatGPT', 'Coze'], 'penalty': ['Midjourney', 'Tableau']},
+    '数据中心': {'boost': ['Python', 'SQL', 'Tableau', '神策数据', 'Power BI', 'GrowingIO'], 'penalty': ['剪映', 'Canva']},
+    '战略规划部': {'boost': ['Tableau', 'Power BI', 'Python', 'SQL', 'ChatGPT', 'Notion'], 'penalty': ['剪映', 'Canva']},
+}
+
+BIZ_ADJUST = {
+    'ToB企业服务': {'boost': ['HubSpot', 'Salesforce', '飞书', '钉钉'], 'penalty': []},
+    'ToC消费互联网': {'boost': ['神策数据', 'GrowingIO', 'Mixpanel', '剪映'], 'penalty': ['Salesforce']},
+    '金融科技': {'boost': ['Python', 'SQL', 'Tableau', 'Power BI'], 'penalty': ['剪映', 'Midjourney']},
+    '医疗健康': {'boost': ['Python', 'SQL'], 'penalty': []},
+    '教育培训': {'boost': ['问卷星', 'Gamma', 'Tome'], 'penalty': []},
+    '电商零售': {'boost': ['神策数据', 'GrowingIO', '剪映', 'Canva', 'Mixpanel'], 'penalty': ['Salesforce']},
+    '文化娱乐': {'boost': ['剪映', 'Midjourney', 'Canva', 'CapCut', 'Runway'], 'penalty': ['Salesforce']},
+    '智能制造': {'boost': ['Python', 'SQL'], 'penalty': ['剪映']},
+    '新能源': {'boost': ['Python', 'SQL'], 'penalty': []},
+    '人工智能': {'boost': ['Python', 'GitHub Copilot', 'Cursor', 'ChatGPT'], 'penalty': []},
+}
+
+SKILL_DB = {
+    '前端开发工程师': [
+        {'name': 'AI辅助编程', 'level': '进阶', 'duration': '2-3周', 'desc': '使用Copilot、Cursor等AI工具辅助前端开发', 'keys': ['代码生成', '智能补全', 'Bug修复']},
+        {'name': '提示词工程', 'level': '入门', 'duration': '1-2周', 'desc': '编写有效的AI提示词，提升开发效率', 'keys': ['问题描述', '代码改写', '调试提示']},
+        {'name': 'AI设计协作', 'level': '基础', 'duration': '1-2周', 'desc': '与AI生成的设计稿协作，理解设计意图', 'keys': ['设计理解', '设计还原', '像素级开发']},
+    ],
+    '后端开发工程师': [
+        {'name': 'AI辅助编程', 'level': '进阶', 'duration': '2-3周', 'desc': '使用AI工具辅助Java/Python/Go开发', 'keys': ['代码生成', '单元测试', '优化重构']},
+        {'name': 'AI数据库设计', 'level': '进阶', 'duration': '1-2周', 'desc': '利用AI辅助数据库设计与优化', 'keys': ['SQL生成', '索引优化', '查询分析']},
+        {'name': 'AI安全审计', 'level': '进阶', 'duration': '2-3周', 'desc': '使用AI工具进行代码安全审计', 'keys': ['漏洞检测', '安全建议', '合规检查']},
+    ],
+    '全栈工程师': [
+        {'name': 'AI全栈开发', 'level': '熟练', 'duration': '3-4周', 'desc': 'AI辅助完成前后端全栈开发', 'keys': ['AI编程', '架构设计', '快速迭代']},
+        {'name': 'AI项目管理', 'level': '进阶', 'duration': '2-3周', 'desc': '使用AI工具进行项目管理和协作', 'keys': ['任务分配', '进度追踪', '文档生成']},
+    ],
+    '产品经理': [
+        {'name': 'AI需求分析', 'level': '进阶', 'duration': '1-2周', 'desc': '使用ChatGPT分析用户需求，生成PRD', 'keys': ['需求挖掘', '用户画像', '竞品分析']},
+        {'name': 'AI数据决策', 'level': '进阶', 'duration': '2-3周', 'desc': '利用AI工具辅助产品决策', 'keys': ['数据解读', 'A/B分析', '增长策略']},
+        {'name': 'AI原型设计', 'level': '基础', 'duration': '1-2周', 'desc': '使用Figma AI快速生成产品原型', 'keys': ['原型制作', '交互设计', '需求可视化']},
+    ],
+    'UI设计师': [
+        {'name': 'AI创意生成', 'level': '熟练', 'duration': '3-4周', 'desc': '精通Midjourney/Stable Diffusion生成设计素材', 'keys': ['提示词编写', '风格控制', '批量生成']},
+        {'name': 'AI设计工具', 'level': '熟练', 'duration': '2-3周', 'desc': '熟练使用Figma AI、Canva等AI设计工具', 'keys': ['AI辅助设计', '效率优化', '设计系统']},
+        {'name': 'AI设计审核', 'level': '进阶', 'duration': '2-3周', 'desc': '审核和优化AI生成的设计内容', 'keys': ['质量评估', '风格统一', '合规检查']},
+    ],
+    '新媒体运营': [
+        {'name': 'AI内容创作', 'level': '熟练', 'duration': '2-3周', 'desc': '使用ChatGPT批量生成多平台内容', 'keys': ['选题策划', '文案生成', '多平台适配']},
+        {'name': 'AI短视频制作', 'level': '熟练', 'duration': '2-3周', 'desc': '使用剪映/CapCut高效制作短视频', 'keys': ['视频剪辑', '特效制作', '节奏把控']},
+        {'name': 'AI数据分析', 'level': '进阶', 'duration': '2-3周', 'desc': '利用AI工具分析内容数据优化运营', 'keys': ['数据解读', '用户分析', '内容优化']},
+        {'name': 'AI社媒管理', 'level': '基础', 'duration': '1-2周', 'desc': '利用AI工具管理多平台社媒账号', 'keys': ['排期管理', '互动分析', '舆情监控']},
+    ],
+    '数据分析师': [
+        {'name': 'AI数据分析', 'level': '熟练', 'duration': '3-4周', 'desc': '使用Python/SQL结合AI进行数据挖掘', 'keys': ['数据处理', '特征工程', '可视化']},
+        {'name': 'AI报表自动化', 'level': '进阶', 'duration': '2-3周', 'desc': '利用AI实现报表自动化生成', 'keys': ['仪表盘', '定时报告', '异常预警']},
+        {'name': 'AI商业洞察', 'level': '熟练', 'duration': '3-4周', 'desc': 'AI辅助生成商业洞察和决策建议', 'keys': ['趋势分析', '归因分析', '策略建议']},
+    ],
+    '市场经理': [
+        {'name': 'AI营销策略', 'level': '熟练', 'duration': '2-3周', 'desc': '使用AI制定数据驱动的营销策略', 'keys': ['市场分析', '用户洞察', '策略制定']},
+        {'name': 'AI营销自动化', 'level': '进阶', 'duration': '3-4周', 'desc': '利用HubSpot实现营销自动化', 'keys': ['线索管理', '邮件营销', '漏斗分析']},
+        {'name': 'AI内容营销', 'level': '熟练', 'duration': '2-3周', 'desc': '使用AI批量化创作高质量营销内容', 'keys': ['内容策划', '文案创作', '多平台分发']},
+    ],
+    '品牌经理': [
+        {'name': 'AI品牌设计', 'level': '进阶', 'duration': '2-3周', 'desc': '使用Midjourney辅助品牌视觉设计', 'keys': ['品牌视觉', '创意设计', '风格定义']},
+        {'name': 'AI舆情分析', 'level': '进阶', 'duration': '2-3周', 'desc': '利用AI进行品牌舆情监控和分析', 'keys': ['舆情监控', '竞品分析', '声誉管理']},
+    ],
+    '电商运营': [
+        {'name': 'AI选品分析', 'level': '熟练', 'duration': '2-3周', 'desc': '使用AI辅助电商选品分析', 'keys': ['市场分析', '竞品调研', '趋势预测']},
+        {'name': 'AI营销自动化', 'level': '进阶', 'duration': '2-3周', 'desc': '利用AI自动优化电商广告投放', 'keys': ['广告优化', 'ROI分析', '用户画像']},
+        {'name': 'AI内容运营', 'level': '熟练', 'duration': '2-3周', 'desc': '使用AI批量化创作商品内容', 'keys': ['内容创作', '视频制作', '图文设计']},
+    ],
+    '广告投放专员': [
+        {'name': 'AI投放优化', 'level': '熟练', 'duration': '3-4周', 'desc': '使用AI优化广告投放策略和出价', 'keys': ['智能出价', '人群定向', '素材优化']},
+        {'name': 'AI数据分析', 'level': '进阶', 'duration': '2-3周', 'desc': '利用AI分析投放数据提供优化建议', 'keys': ['数据解读', '归因分析', 'ROI提升']},
+    ],
+    'HR专员': [
+        {'name': 'AI招聘辅助', 'level': '基础', 'duration': '1-2周', 'desc': '使用AI辅助简历筛选和候选人评估', 'keys': ['简历分析', '匹配度评分', '面试准备']},
+        {'name': 'AI人事管理', 'level': '基础', 'duration': '1-2周', 'desc': '利用AI提高人事管理效率', 'keys': ['员工档案', '流程自动化', '数据分析']},
+    ],
+    '财务分析师': [
+        {'name': 'AI财务分析', 'level': '进阶', 'duration': '2-3周', 'desc': '使用AI进行财务报表分析和预测', 'keys': ['报表分析', '预算预测', '风险识别']},
+        {'name': 'AI Excel高级应用', 'level': '熟练', 'duration': '2-3周', 'desc': '利用AI辅助Excel高级数据处理', 'keys': ['VBA自动化', '数据透视', '可视化']},
+    ],
+}
+
+def get_skills(position_name):
+    return SKILL_DB.get(position_name, [
+        {'name': 'AI基础应用', 'level': '入门', 'duration': '1-2周', 'desc': '掌握通用AI工具的基础操作', 'keys': ['工具使用', '基础提问', '结果筛选']},
+        {'name': '提示词工程', 'level': '基础', 'duration': '1-2周', 'desc': '编写有效的AI提示词', 'keys': ['问题描述', '任务分解', '结果优化']},
+    ])
+
+def calc_tool_level(tool_name, company_scale, business_type, department):
+    db = TOOL_DB.get(tool_name, {'cost': 10, 'free': True})
+    di = DEPT_ADJUST.get(department, {'boost': [], 'penalty': []})
+    bi = BIZ_ADJUST.get(business_type.replace('全部', ''), {'boost': [], 'penalty': []})
+    score = 50
+    if tool_name in di['boost']: score += 30
+    if tool_name in di['penalty']: score -= 25
+    if tool_name in bi['boost']: score += 20
+    if tool_name in bi['penalty']: score -= 20
+    if company_scale == '大型':
+        score += 5 if not db['free'] else -5
+    elif company_scale == '小型':
+        score += 15 if db['free'] else (-10 if db['cost'] > 15 else 5)
+    if score >= 75: return '必备'
+    if score >= 50: return '推荐'
+    return '可选'
+
+def generate_recommendations(search_results, company_scale, business_type, department):
+    tools = search_results.get('tools', [])
+    scale_factor = {'小型': 0.6, '中型': 1.0, '大型': 1.5}
+    factor = scale_factor.get(company_scale, 1.0)
+    recommendations = []
+    for tool in tools[:10]:
+        db = TOOL_DB.get(tool, {'cost': 10, 'learn': '2-4周', 'best': ['通用'], 'difficulty': '中', 'free': True})
+        level = calc_tool_level(tool, company_scale, business_type, department)
+        recommendations.append({'tool': tool, 'category': TOOL_CATEGORIES.get(tool, '其他'), 'level': level, 'cost': db['cost'], 'est_cost': int(db['cost'] * factor), 'free': db['free'], 'learn': db['learn'], 'difficulty': db['difficulty'], 'best_for': db['best']})
+    recommendations.sort(key=lambda x: {'必备': 0, '推荐': 1, '可选': 2}[x['level']])
     return recommendations
 
-def render_step2_results():
-    if not st.session_state.recommendations:
-        return
-    
-    company = st.session_state.company_info
-    
-    st.markdown('<div class="step-box">', unsafe_allow_html=True)
-    st.markdown("### 第二步结果：个性化AI工具配置方案")
-    st.markdown(f"**{company['industry']}** | **{company['scale']}** | 团队**{company['teamSize']}**人 | 预算**{company['budget']}** | 周期**{company['timeline']}**")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    tabs = st.tabs(["设计总监", "设计主管", "设计专员", "成本分析", "实施路径"])
-    
-    positions = ["设计总监", "设计主管", "设计专员"]
-    
-    for idx, (tab, position) in enumerate(zip(tabs[:3], positions)):
-        with tab:
-            if position in st.session_state.recommendations:
-                data = st.session_state.recommendations[position]
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("必备工具", len(data['essential']))
-                with col2:
-                    st.metric("推荐工具", len(data['recommended']))
-                with col3:
-                    st.metric("月费估算", f"${data['cost']}")
-                
-                st.markdown("---")
-                
-                if data['essential']:
-                    st.markdown("#### 🔴 必备工具（核心配置）")
-                    for tool in data['essential']:
-                        render_tool_recommendation(tool, "essential")
-                
-                if data['recommended']:
-                    st.markdown("#### 🟡 推荐工具（扩展配置）")
-                    for tool in data['recommended']:
-                        render_tool_recommendation(tool, "recommended")
-                
-                st.markdown("---")
-                st.markdown("#### 📚 技能矩阵 - 为更好使用AI工具建议掌握的技能")
-                
-                # 使用新的技能矩阵数据
-                if position in SKILL_MATRIX:
-                    skill_data = SKILL_MATRIX[position]
-                    
-                    for category, skills in skill_data.items():
-                        with st.expander(f"📖 {category}"):
-                            # 创建技能矩阵表格
-                            skill_df_data = []
-                            for skill_name, skill_info in skills.items():
-                                level_color = {
-                                    "专家": "🔴", "高级": "🟠", "熟练": "🟡", 
-                                    "进阶": "🟢", "入门": "🔵"
-                                }.get(skill_info['level'], "⚪")
-                                
-                                priority_color = {
-                                    "核心": "🔴", "重要": "🟠", "一般": "🟡"
-                                }.get(skill_info['priority'], "⚪")
-                                
-                                skill_df_data.append({
-                                    '技能名称': skill_name,
-                                    '掌握程度': f"{level_color} {skill_info['level']}",
-                                    '优先级': f"{priority_color} {skill_info['priority']}"
-                                })
-                            
-                            if skill_df_data:
-                                skill_df = pd.DataFrame(skill_df_data)
-                                st.dataframe(skill_df, use_container_width=True, hide_index=True)
-                
-                # 传统技能展示作为补充
-                st.markdown("---")
-                st.markdown("**📖 详细技能说明**:")
-                for skill in data['skills']:
-                    with st.expander(f"{skill['name']} ({skill['level']})"):
-                        st.write(f"**学习周期**: {skill['time']}")
-                        st.write(f"**描述**: {skill['desc']}")
-    
-    with tabs[3]:
-        st.markdown("#### 💰 成本分析对比")
-        
-        cost_data = []
-        for pos in positions:
-            if pos in st.session_state.recommendations:
-                data = st.session_state.recommendations[pos]
-                cost_data.append({
-                    '岗位层级': pos,
-                    '必备工具数': len(data['essential']),
-                    '推荐工具数': len(data['recommended']),
-                    '月费': data['cost'],
-                    '年费': data['cost'] * 12
-                })
-        
-        if cost_data:
-            cost_df = pd.DataFrame(cost_data)
-            st.dataframe(cost_df, use_container_width=True)
-            
-            st.bar_chart(cost_df.set_index('岗位层级')[['月费', '年费']])
-            
-            total_monthly = sum(item['cost'] for item in st.session_state.recommendations.values())
-            st.info(f"**总月费预算**: ${total_monthly} | **总年费预算**: ${total_monthly * 12}")
-    
-    with tabs[4]:
-        st.markdown("#### 🛤️ AI工具组合架构与最优路径")
-        st.info("💡 这里展示的不是简单的工具使用步骤，而是基于当前AI技术发展的最优解——前后工具配合、调用关系、以及如何利用AI自动化减少人工操作")
-        
-        # 为每个关键工具展示AI组合架构
-        key_tools = ["Midjourney", "Stable Diffusion", "Runway", "Figma AI", "Lovart/星流", "ChatGPT/Claude"]
-        
-        for tool_name in key_tools:
-            if tool_name in AI_WORKFLOWS:
-                workflow = AI_WORKFLOWS[tool_name]
-                
-                with st.expander(f"🎯 {tool_name} - {workflow['workflow_name']}"):
-                    st.markdown(f"**{workflow['description']}**")
-                    st.markdown(f"💡 **核心洞察**: {workflow['key_insight']}")
-                    
-                    st.markdown("---")
-                    st.markdown("**🔄 最优工作流路径**:")
-                    
-                    for step in workflow['optimal_path']:
-                        st.markdown(f"""
-                        <div style="
-                            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-                            border-left: 4px solid #667eea;
-                            border-radius: 8px;
-                            padding: 1rem;
-                            margin: 0.5rem 0;
-                        ">
-                            <div style="display:flex;justify-content:space-between;align-items:center;">
-                                <h4 style="margin:0;color:#1a1a2e;">步骤 {step['step']}: {step['phase']}</h4>
-                                <span style="background:#667eea;color:white;padding:2px 8px;border-radius:12px;font-size:0.8rem;">{step['tool']}</span>
-                            </div>
-                            <p style="margin:0.5rem 0;color:#666;"><strong>操作:</strong> {step['action']}</p>
-                            <p style="margin:0;color:#888;font-size:0.9rem;"><strong>产出:</strong> {step['output']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Prompt模板展示
-                    if 'prompt_template' in workflow:
-                        st.markdown("---")
-                        st.markdown("**📝 Prompt工程模板**:")
-                        prompt_data = workflow['prompt_template']
-                        st.markdown(f"**结构**: {prompt_data['structure']}")
-                        
-                        with st.expander("查看完整Prompt示例"):
-                            st.code(prompt_data['example'], language='text')
-        
-        # Prompt模板库
-        st.markdown("---")
-        st.markdown("#### 📚 Prompt工程模板库")
-        st.info("掌握这些Prompt结构，可以大幅提升AI工具的输出质量")
-        
-        for template_name, template_data in PROMPT_TEMPLATES.items():
-            with st.expander(f"📝 {template_data['name']}"):
-                st.markdown(f"**模板结构**: {template_data['template']}")
-                st.markdown("**示例**:")
-                st.code(template_data['example'], language='text')
+def generate_plan(tools, company_scale):
+    essential = [t for t in tools if t['level'] == '必备']
+    recommended = [t for t in tools if t['level'] == '推荐']
+    optional = [t for t in tools if t['level'] == '可选']
+    small_plan = [
+        {'phase': '阶段一：基础搭建（第1-2周）', 'tasks': ['安装配置必备工具', '建立基础工作流', '个人技能培训'], 'tools': [t['tool'] for t in essential[:3]]},
+        {'phase': '阶段二：能力深化（第3-4周）', 'tasks': ['优化使用技巧', '建立个人模板库', '扩展到推荐工具'], 'tools': [t['tool'] for t in essential[:5] + recommended[:2]]},
+        {'phase': '阶段三：全面应用（第5-8周）', 'tasks': ['整合可选工具', '制定最佳实践', '持续优化迭代'], 'tools': [t['tool'] for t in essential + recommended[:3] + optional[:1]]},
+    ]
+    mid_plan = [
+        {'phase': '阶段一：基础搭建（第1-2周）', 'tasks': ['安装配置必备工具', '建立基础工作流', '团队基础培训'], 'tools': [t['tool'] for t in essential[:3]]},
+        {'phase': '阶段二：能力深化（第3-4周）', 'tasks': ['优化提示词模板', '建立质量标准', '扩展工具应用', '团队技能建设'], 'tools': [t['tool'] for t in essential]},
+        {'phase': '阶段三：全面应用（第5-8周）', 'tasks': ['整合推荐工具', '建立最佳实践', '持续优化迭代', '跨部门推广'], 'tools': [t['tool'] for t in essential + recommended[:4]]},
+    ]
+    large_plan = [
+        {'phase': '阶段一：基础搭建（第1-2周）', 'tasks': ['制定企业级使用规范', '安装配置必备工具', '组建AI工具管理团队'], 'tools': [t['tool'] for t in essential[:4]]},
+        {'phase': '阶段二：团队培训（第3-4周）', 'tasks': ['全员AI工具培训', '建立知识管理体系', '试点应用与反馈'], 'tools': [t['tool'] for t in essential]},
+        {'phase': '阶段三：全面推广（第5-8周）', 'tasks': ['全团队推广', '效果评估与优化', '建立最佳实践库', '持续迭代升级'], 'tools': [t['tool'] for t in essential + recommended]},
+    ]
+    return {'小型': small_plan, '中型': mid_plan, '大型': large_plan}.get(company_scale, mid_plan)
 
-def render_tool_recommendation(tool, level):
-    colors = {"essential": "#e74c3c", "recommended": "#f39c12"}
-    labels = {"essential": "必备", "recommended": "推荐"}
+def calc_cost(tools, company_scale):
+    factor = {'小型': 0.6, '中型': 1.0, '大型': 1.5}.get(company_scale, 1.0)
+    essential = [t for t in tools if t['level'] == '必备']
+    recommended = [t for t in tools if t['level'] == '推荐']
+    es = sum(t['cost'] for t in essential)
+    rs = sum(t['cost'] for t in recommended)
+    return {'essential_monthly': int(es * factor), 'recommended_monthly': int(rs * factor), 'total_monthly': int((es + rs) * factor), 'total_annual': int((es + rs) * factor * 12), 'breakdown': [*[{'tool': t['tool'], 'cost': int(t['cost'] * factor), 'level': '必备'} for t in essential], *[{'tool': t['tool'], 'cost': int(t['cost'] * factor), 'level': '推荐'} for t in recommended]]}
+
+# ============================
+#  TOOL CATEGORY MAP
+# ============================
+TOOL_CATEGORIES = {
+    'ChatGPT': 'AI助手', 'Claude': 'AI助手', '文心一言': 'AI助手', '通义千问': 'AI助手', 'Kimi': 'AI助手',
+    '豆包': 'AI助手', '讯飞星火': 'AI助手', '腾讯混元': 'AI助手',
+    'WorkBuddy': 'AI助手', 'OpenClaw': 'AI助手', 'Coze': 'AI助手', 'Trae': 'AI助手', 'FastGPT': 'AI助手',
+    'Notion AI': '写作工具', '秘塔写作猫': '写作工具', '火山写作': '写作工具', 'Jasper': '写作工具', 'Grammarly': '写作工具',
+    'Canva': '设计工具', 'Figma': '设计工具', 'Midjourney': '设计工具', 'Stable Diffusion': '设计工具',
+    'Adobe Firefly': '设计工具', 'DALL-E': '设计工具', '创客贴': '设计工具', '稿定设计': '设计工具', 'Remove.bg': '设计工具',
+    '剪映': '视频工具', 'CapCut': '视频工具', 'HeyGen': '视频工具', '腾讯智影': '视频工具', 'Runway': '视频工具', 'Pika': '视频工具',
+    'Gamma': '演示工具', 'Tome': '演示工具', 'MindShow': '演示工具', '博思白板': '演示工具',
+    'Tableau': '数据分析', 'Power BI': '数据分析', 'Python': '数据分析', 'SQL': '数据分析',
+    '神策数据': '数据分析', 'GrowingIO': '数据分析', 'Mixpanel': '数据分析',
+    'GitHub Copilot': '开发工具', 'Cursor': '开发工具', 'Codeium': '开发工具', '通义灵码': '开发工具', '文心快码': '开发工具', 'Tabnine': '开发工具',
+    '飞书': '协作工具', '飞书多维表格': '协作工具', '钉钉': '协作工具', '企业微信': '协作工具', 'Notion': '协作工具', '印象笔记': '协作工具',
+    'XMind': '思维导图', 'ProcessOn': '思维导图',
+    '影刀': 'RPA工具', 'UiPath': 'RPA工具', 'Automation Anywhere': 'RPA工具',
+    'HubSpot': '营销工具', 'Salesforce': '营销工具', 'Marketo': '营销工具',
+    'SAP': '财务工具', 'Oracle': '财务工具', '用友': '财务工具', '金蝶': '财务工具',
+    '问卷星': '教育工具', '腾讯文档': '教育工具', '石墨文档': '教育工具',
+}
+
+CATEGORY_COLORS = {
+    'AI助手': '#00d26a', '写作工具': '#a371f7', '设计工具': '#ec4899',
+    '视频工具': '#ff922b', '演示工具': '#f59e0b', '数据分析': '#00d26a',
+    '开发工具': '#4dabf7', '协作工具': '#22c55e', '思维导图': '#d2a8ff',
+    'RPA工具': '#f97316', '营销工具': '#69db7c', '财务工具': '#ef4444',
+    '教育工具': '#06b6d4', '其他': '#9ca3af'
+}
+
+# ============================
+#  SIDEBAR
+# ============================
+with st.sidebar:
+    st.markdown("""
+    <div class="brand-header">
+        <div class="logo-icon">🤖</div>
+        <div>
+            <div class="brand-text">SectorAI</div>
+            <div class="brand-sub">AI岗位工具配置</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<div class='section-title'>🎯 第一步：选择岗位</div>", unsafe_allow_html=True)
+    
+    industries = get_all_industries()
+    industry = st.selectbox("行业", industries, key="industry")
+    
+    categories = get_categories_for_industry(industry)
+    category = st.selectbox("职位类别", categories, key="category")
+    
+    positions = get_positions_for_category(industry, category)
+    position = st.selectbox("具体岗位", positions, key="position")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔍 搜索AI工具", type="primary", use_container_width=True):
+        st.session_state.search_clicked = True
+    
+    st.markdown("---")
+    st.markdown("<div style='color:#5a6078;font-size:11px;'>v4.0 · 2026-05-14</div>", unsafe_allow_html=True)
+
+# ============================
+#  MAIN CONTENT
+# ============================
+if st.session_state.get('search_clicked', False):
+    with st.spinner("正在搜索..."):
+        template = get_position_data(industry, category, position)
+        if template:
+            ai_tools = template.get('ai_tools', [])
+            skills = template.get('skills', [])
+            salary = template.get('salary_range', '面议')
+            company_scales = template.get('company_scales', [])
+            business_types = template.get('business_types', [])
+            depts = template.get('departments', [])
+            
+            st.session_state.search_results = {
+                'industry': industry, 'category': category, 'position': position,
+                'salary': salary, 'tools': ai_tools, 'skills': skills,
+                'compatible_scales': company_scales,
+                'compatible_business': business_types,
+                'compatible_departments': depts
+            }
+            st.success(f"✅ 搜索完成！匹配 {len(ai_tools)} 个AI工具")
+        else:
+            st.error("❌ 暂无该职位数据")
+
+def handle_analyze():
+    recs = generate_recommendations(st.session_state.search_results, st.session_state.company_scale, st.session_state.business_type, st.session_state.department)
+    plan = generate_plan(recs, st.session_state.company_scale)
+    cost = calc_cost(recs, st.session_state.company_scale)
+    skills = get_skills(st.session_state.search_results.get('position', ''))
+    st.session_state.analysis_results = {
+        'company_scale': st.session_state.company_scale,
+        'business_type': st.session_state.business_type,
+        'department': st.session_state.department,
+        'position': st.session_state.search_results.get('position', ''),
+        'category': st.session_state.search_results.get('category', ''),
+        'industry': st.session_state.search_results.get('industry', ''),
+        'recommendations': recs,
+        'plan': plan,
+        'cost': cost,
+        'skills': skills,
+    }
+
+# ============================
+#  DISPLAY RESULTS
+# ============================
+if st.session_state.search_results:
+    r = st.session_state.search_results
     
     st.markdown(f"""
-    <div style="
-        border-left: 5px solid {colors.get(level, '#ccc')};
-        background: white;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    ">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <h4 style="margin:0;color:#1a1a2e;">{tool['name']}</h4>
-            <span style="
-                background: {colors.get(level, '#ccc')};
-                color: white;
-                padding: 4px 12px;
-                border-radius: 20px;
-                font-size: 0.8rem;
-                font-weight: bold;
-            ">{labels.get(level, '')}</span>
+    <div class="section-title">
+        📊 岗位概览
+        <span class="badge-live">实时数据</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    c1, c2, c3, c4 = st.columns(4)
+    metrics = [
+        ("行业", r['industry'], "↑ 活跃", "up"),
+        ("职位类别", r['category'], "", ""),
+        ("岗位", r['position'], "", ""),
+        ("薪资范围", r['salary'], "↑ 竞争力", "up"),
+    ]
+    for col, (label, value, change, change_type) in zip([c1, c2, c3, c4], metrics):
+        with col:
+            change_html = f'<div class="metric-change {change_type}">{change}</div>' if change else ''
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">{label}</div>
+                <div class="metric-value">{value}</div>
+                {change_html}
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown(f"""
+    <div class="section-title">
+        🛠️ 第四层：AI工具推荐
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if r['tools']:
+        tools_by_category = {}
+        for tool in r['tools']:
+            category = TOOL_CATEGORIES.get(tool, '其他')
+            if category not in tools_by_category:
+                tools_by_category[category] = []
+            tools_by_category[category].append(tool)
+        
+        for category, tools in tools_by_category.items():
+            with st.expander(f"📦 {category} ({len(tools)}个工具)"):
+                tool_cols = st.columns(2)
+                for i, tool in enumerate(tools):
+                    with tool_cols[i % 2]:
+                        st.markdown(f"""
+                        <div class="tool-tag">
+                            <span>{tool}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+    else:
+        st.info("暂无匹配的AI工具")
+    
+    st.markdown("---")
+    
+    if r['skills']:
+        st.markdown(f"""
+        <div class="section-title">
+            🎯 核心技能要求
         </div>
-        <p style="margin:0.5rem 0;color:#666;">{tool['reason']}</p>
-        <div style="background:#f8f9fa;border-radius:8px;padding:0.8rem;margin-top:0.5rem;">
-            <strong>🛤️ 使用路径:</strong> {tool['path']}
+        """, unsafe_allow_html=True)
+        skill_cols = st.columns(4)
+        for i, skill in enumerate(r['skills']):
+            with skill_cols[i % 4]:
+                st.markdown(f"""
+                <div class="skill-tag">
+                    {skill}
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown(f"""
+    <div class="section-title">
+        🏢 第二步：企业配置分析
+    </div>
+    """, unsafe_allow_html=True)
+    
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        company_scale = st.selectbox("企业规模", get_company_scales(), key="company_scale", index=1)
+    with c2:
+        business_type = st.selectbox("业务类型", ["全部"] + get_business_types(), key="business_type")
+    with c3:
+        department = st.selectbox("所属部门", ["全部"] + get_departments(), key="department")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.button("🚀 开始分析", type="primary", key="analyze_button", on_click=handle_analyze)
+    
+    st.markdown("---")
+    
+    if st.session_state.get('analysis_results'):
+        ar = st.session_state.analysis_results
+        st.markdown("---")
+        st.markdown(f"""
+        <div class="section-title">
+            📈 第二步：企业配置分析结果
         </div>
-        <div style="display:flex;gap:1rem;margin-top:0.5rem;font-size:0.9rem;color:#888;">
-            <span>💰 月费: ${tool['cost']}</span>
-            <span>📊 年费: ${tool['cost'] * 12}</span>
+        """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="analysis-summary">
+            <div class="analysis-item"><span class="analysis-label">岗位：</span><span class="analysis-value">{ar['industry']} → {ar['category']} → {ar['position']}</span></div>
+            <div class="analysis-item"><span class="analysis-label">规模：</span><span class="analysis-value">{ar['company_scale']}</span></div>
+            <div class="analysis-item"><span class="analysis-label">业务：</span><span class="analysis-value">{ar['business_type']}</span></div>
+            <div class="analysis-item"><span class="analysis-label">部门：</span><span class="analysis-value">{ar['department']}</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("<div class='section-title'>🛠️ 推荐工具</div>", unsafe_allow_html=True)
+        
+        recs = ar['recommendations']
+        c1, c2, c3 = st.columns(3)
+        for i, rec in enumerate(recs):
+            with [c1, c2, c3][i % 3]:
+                lvl_color = {'必备': '#00d26a', '推荐': '#f59e0b', '可选': '#9ca3af'}.get(rec['level'], '#9ca3af')
+                free_tag = '🆓 免费' if rec['free'] else f"¥{rec['est_cost']}/月"
+                st.markdown(f"""
+                <div class="metric-card" style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <strong style="font-size:15px;">{rec['tool']}</strong>
+                        <span style="background:{lvl_color}20;color:{lvl_color};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">{rec['level']}</span>
+                    </div>
+                    <div style="font-size:12px;color:#5a6078;margin-bottom:4px;">{free_tag} · {rec['learn']} · {rec['difficulty']}</div>
+                    <div style="font-size:11px;color:#8b92a8;">{', '.join(rec['best_for'])}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("<div class='section-title'>📋 工具实施路径</div>", unsafe_allow_html=True)
+        
+        for phase in ar['plan']:
+            if phase['tools']:
+                with st.expander(f"🔹 {phase['phase']}"):
+                    st.markdown(f"**任务：**")
+                    for t in phase['tasks']:
+                        st.markdown(f"- {t}")
+                    st.markdown(f"**涉及工具：**{', '.join(phase['tools'])}")
+        
+        st.markdown("---")
+        
+        st.markdown("<div class='section-title'>💰 成本估算</div>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f'<div class="metric-card"><div class="metric-label">必备工具月成本</div><div class="metric-value">¥{ar["cost"]["essential_monthly"]}</div></div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown(f'<div class="metric-card"><div class="metric-label">推荐工具月成本</div><div class="metric-value">¥{ar["cost"]["recommended_monthly"]}</div></div>', unsafe_allow_html=True)
+        with c3:
+            st.markdown(f'<div class="metric-card"><div class="metric-label">年度总成本</div><div class="metric-value">¥{ar["cost"]["total_annual"]}</div></div>', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("<div class='section-title'>🎓 需要掌握的技能</div>", unsafe_allow_html=True)
+        
+        for skill in ar['skills']:
+            with st.expander(f"📘 {skill['name']}（{skill['level']} · {skill['duration']}）"):
+                st.markdown(f"""
+                <div style="margin-bottom:8px;">{skill['desc']}</div>
+                <div><strong>关键能力：</strong>{', '.join(skill['keys'])}</div>
+                """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🔄 重新搜索", use_container_width=True):
+            st.session_state.search_results = None
+            st.session_state.search_clicked = False
+            st.session_state.analysis_results = None
+            st.session_state.analyze_clicked = False
+            st.rerun()
+    with c2:
+        if st.button("💾 导出报告", use_container_width=True):
+            st.success("报告导出功能开发中...")
+
+else:
+    st.markdown("""
+    <div class="landing-hero">
+        <div class="hero-icon">🤖</div>
+        <div class="hero-title">SectorAI 岗位工具配置系统</div>
+        <div class="hero-subtitle">
+            采用四层数据结构，精准匹配岗位与AI工具<br>
+            行业 → 职位类别 → 具体岗位 → AI工具推荐
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    total_industries = len(DB.get("industries", {}))
+    total_categories = sum(len(ind["categories"]) for ind in DB.get("industries", {}).values())
+    total_positions = sum(len(cat["positions"]) for ind in DB.get("industries", {}).values() for cat in ind.get("categories", {}).values())
+    total_tools = sum(len(pos.get("ai_tools", [])) for ind in DB.get("industries", {}).values() for cat in ind.get("categories", {}).values() for pos in cat.get("positions", {}).values())
+    
+    c1, c2, c3, c4 = st.columns(4)
+    stats = [
+        ("行业覆盖", total_industries, "↑ 持续更新", "up"),
+        ("职位类别", total_categories, "", ""),
+        ("岗位数量", total_positions, "↑ 增长中", "up"),
+        ("AI工具条目", total_tools, "", ""),
+    ]
+    for col, (label, value, change, change_type) in zip([c1, c2, c3, c4], stats):
+        with col:
+            change_html = f'<div class="metric-change {change_type}">{change}</div>' if change else ''
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">{label}</div>
+                <div class="metric-value">{value}</div>
+                {change_html}
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown("<div class='section-title'>🚀 快速开始</div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="step-guide">
+        <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;">
+            <div class="step-item">
+                <div class="step-circle">1</div>
+                <div class="step-label">选择行业</div>
+            </div>
+            <div style="color:#2a3042;font-size:24px;">→</div>
+            <div class="step-item">
+                <div class="step-circle">2</div>
+                <div class="step-label">选择类别</div>
+            </div>
+            <div style="color:#2a3042;font-size:24px;">→</div>
+            <div class="step-item">
+                <div class="step-circle">3</div>
+                <div class="step-label">选择岗位</div>
+            </div>
+            <div style="color:#2a3042;font-size:24px;">→</div>
+            <div class="step-item">
+                <div class="step-circle active">4</div>
+                <div class="step-label active">AI工具</div>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-def main():
-    st.markdown('<div class="main-title">🎯 AI岗位工具配置分析系统</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">基于招聘大数据，为您的团队推荐最适合的AI工具配置方案</div>', unsafe_allow_html=True)
-    
-    st.sidebar.title("📋 使用导航")
-    st.sidebar.markdown("""
-    **使用流程**:
-    1. 选择行业和AI岗位
-    2. 查看AI工具汇总
-    3. 配置公司信息
-    4. 获取个性化推荐
-    """)
-    
-    if st.sidebar.button("🔄 重新开始分析"):
-        st.session_state.step = 1
-        st.session_state.search_results = None
-        st.session_state.recommendations = None
-        st.session_state.company_info = {}
-        st.rerun()
-    
-    if st.session_state.step == 1:
-        render_step1()
-        
-        if st.session_state.search_results:
-            render_step1_results()
-    
-    elif st.session_state.step == 2:
-        if st.sidebar.button("⬅️ 返回第一步"):
-            st.session_state.step = 1
-            st.rerun()
-        
-        render_step2()
-        
-        if st.session_state.recommendations:
-            render_step2_results()
-
-if __name__ == "__main__":
-    main()
+st.markdown("---")
+st.markdown("<div class='footer-text'>🤖 SectorAI · AI岗位工具配置分析系统</div>", unsafe_allow_html=True)

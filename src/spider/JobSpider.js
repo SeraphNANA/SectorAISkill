@@ -403,3 +403,29 @@ class JobSpider {
 }
 
 module.exports = JobSpider;
+
+// 命令行入口
+if (require.main === module) {
+  const spider = new JobSpider();
+  
+  // 获取命令行参数
+  const args = process.argv.slice(2);
+  const keyword = args[0] || 'AI 产品经理';
+  const city = args[1] || '北京';
+  const maxPages = parseInt(args[2]) || 2;
+  
+  console.log(`🕷️ 开始爬取：${keyword} (${city})`);
+  console.log(`📄 最多爬取 ${maxPages} 页\n`);
+  
+  spider.crawl(keyword, { city, maxPages })
+    .then(jobs => {
+      console.log(`✅ 爬取完成！共获取 ${jobs.length} 个岗位\n`);
+      console.log('--- 数据开始 ---');
+      console.log(JSON.stringify(jobs, null, 2));
+      console.log('--- 数据结束 ---');
+    })
+    .catch(error => {
+      console.error('❌ 爬取失败:', error.message);
+      process.exit(1);
+    });
+}

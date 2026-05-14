@@ -1,8 +1,9 @@
 require('dotenv').config();
-const JobSpider = require('./src/spider/JobSpider');
+const JobSpider = require('./src/spider/JobSpiderV2');
 const JobFilter = require('./src/filter/JobFilter');
 const ToolExtractor = require('./src/extractor/ToolExtractor');
 const PositionRecommender = require('./src/recommender/PositionRecommender');
+const JobAnalyzer = require('./src/analyzer/JobAnalyzer');
 const fs = require('fs');
 const path = require('path');
 
@@ -88,17 +89,24 @@ class SectorAISkill {
       return { keyword, jobs: validJobs, toolStats: {}, recommendations: {} };
     }
 
-    // 4. 生成推荐
+    // 4. NLP分析（新增）
+    const analyzer = new JobAnalyzer();
+    const analysisReport = analyzer.generateAnalysisReport(validJobs, {
+      numTopics: 5,
+      numTerms: 8
+    });
+
+    // 5. 生成推荐
     const recommender = new PositionRecommender();
     const recommendations = recommender.generateRecommendations(toolStats, {
       companyScale: this.companyScale
     });
 
-    // 5. 导出报告
+    // 6. 导出报告
     const reportPath = await recommender.exportRecommendations(recommendations, keyword);
 
-    // 6. 保存原始数据
-    await this.saveRawData(keyword, validJobs, toolStats, recommendations);
+    // 7. 保存原始数据和分析报告
+    await this.saveRawData(keyword, validJobs, toolStats, recommendations, analysisReport);
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     
@@ -118,7 +126,7 @@ class SectorAISkill {
     };
   }
 
-  async saveRawData(keyword, jobs, toolStats, recommendations) {
+  async saveRawData(keyword, jobs, toolStats, recommendations, analysisReport) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const safeKeyword = keyword.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
     
@@ -129,7 +137,8 @@ class SectorAISkill {
       summary: {
         totalJobs: jobs.length,
         totalTools: Object.keys(toolStats).length,
-        positionDistribution: this.getPositionDistribution(jobs)
+        positionDistribution: this.getPositionDistribution(jobs),
+        analysisSummary: analysisReport?.summary || {}
       },
       jobs: jobs.map(job => ({
         title: job.title,
@@ -146,11 +155,19 @@ class SectorAISkill {
         url: job.url
       })),
       toolStats,
-      recommendations: this.simplifyRecommendations(recommendations)
+      recommendations: this.simplifyRecommendations(recommendations),
+      analysis: analysisReport || {}
     };
 
     const fileName = `${this.outputDir}/${safeKeyword}_raw_data_${timestamp}.json`;
     fs.writeFileSync(fileName, JSON.stringify(data, null, 2), 'utf8');
+    
+    // 单独保存分析报告
+    if (analysisReport) {
+      const analysisFileName = `${this.outputDir}/${safeKeyword}_analysis_${timestamp}.json`;
+      fs.writeFileSync(analysisFileName, JSON.stringify(analysisReport, null, 2), 'utf8');
+      console.log(`📊 分析报告已保存: ${analysisFileName}`);
+    }
   }
 
   getPositionDistribution(jobs) {
