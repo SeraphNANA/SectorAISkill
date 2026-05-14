@@ -13,12 +13,12 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 def get_theme_css():
     dark = {
-        'bg': '#0a0e1a', 'bg_secondary': '#111827', 'card': '#1a1f2e',
-        'border': '#2a3042', 'text_primary': '#f0f6fc', 'text_secondary': '#8b949e', 
-        'text_muted': '#5a6078', 'accent': '#00d26a', 'accent_bg': 'rgba(0, 210, 106, 0.12)',
-        'accent_border': 'rgba(0, 210, 106, 0.2)', 'blue': '#4dabf7', 'blue_bg': 'rgba(77, 171, 247, 0.12)',
-        'purple': '#a371f7', 'shadow': '0 4px 12px rgba(0,0,0,0.3)', 'shadow_hover': '0 6px 20px rgba(0,0,0,0.4)',
-        'input_bg': '#1a1f2e', 'footer': '#5a6078',
+        'bg': '#f8f7fc', 'bg_secondary': '#ffffff', 'card': '#ffffff',
+        'border': '#e8e5f0', 'text_primary': '#1a1a2e', 'text_secondary': '#6b6680', 
+        'text_muted': '#9b96b0', 'accent': '#7c3aed', 'accent_bg': 'rgba(124, 58, 237, 0.1)',
+        'accent_border': 'rgba(124, 58, 237, 0.2)', 'blue': '#4f46e5', 'blue_bg': 'rgba(79, 70, 229, 0.1)',
+        'purple': '#8b5cf6', 'shadow': '0 4px 12px rgba(124, 58, 237, 0.08)', 'shadow_hover': '0 6px 20px rgba(124, 58, 237, 0.12)',
+        'input_bg': '#ffffff', 'footer': '#9b96b0',
     }
     
     light = {
@@ -75,7 +75,7 @@ def get_theme_css():
         }}
         {prefix}[data-testid="stSidebar"] .stSelectbox > div > div {{
             background: {c['input_bg']} !important;
-            border: 1px solid {c['border']} !important;
+            border: 1px solid {c['accent']} !important;
             border-radius: 10px !important;
             color: {c['text_primary']} !important;
         }}
@@ -90,6 +90,7 @@ def get_theme_css():
             background: linear-gradient(135deg, {c['accent']}, {c['purple']});
             border-radius: 10px; display: flex; align-items: center; justify-content: center;
             font-size: 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            color: #ffffff !important;
         }}
         {prefix}.brand-header .brand-text {{
             font-size: 18px; font-weight: 700; color: {c['text_primary']}; letter-spacing: -0.3px;
@@ -252,12 +253,22 @@ def get_theme_css():
     .brand-header .brand-text {{ font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }}
     .brand-header .brand-sub {{ font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }}
     
-    .brand-header .logo-icon {{ background: linear-gradient(135deg, {dark['accent']}, {dark['purple']}); }}
+    .brand-header .logo-icon {{ background: linear-gradient(135deg, {dark['accent']}, {dark['purple']}); color: #ffffff !important; }}
     .brand-header .brand-text {{ color: {dark['text_primary']}; }}
     .brand-header .brand-sub {{ color: {dark['text_secondary']}; }}
     .brand-header {{ border-bottom: 1px solid {dark['border']}; }}
     
-    .stApp[data-theme="light"] .brand-header .logo-icon {{ background: linear-gradient(135deg, {light['accent']}, {light['purple']}); }}
+    .stApp[data-theme="light"] .brand-header .logo-icon {{ background: linear-gradient(135deg, {light['accent']}, {light['purple']}); color: #ffffff !important; }}
+    
+    /* Sidebar Selectboxes */
+    [data-testid="stSidebar"] div[data-baseweb="select"] {{
+        border: 1px solid {dark['accent']} !important;
+        border-radius: 10px !important;
+        background: #ffffff !important;
+    }}
+    .stApp[data-theme="light"] [data-testid="stSidebar"] div[data-baseweb="select"] {{
+        border-color: {light['accent']} !important;
+    }}
     .stApp[data-theme="light"] .brand-header .brand-text {{ color: {light['text_primary']}; }}
     .stApp[data-theme="light"] .brand-header .brand-sub {{ color: {light['text_secondary']}; }}
     .stApp[data-theme="light"] .brand-header {{ border-bottom-color: {light['border']}; }}
@@ -808,7 +819,7 @@ if st.session_state.search_results:
         c1, c2, c3 = st.columns(3)
         for i, rec in enumerate(recs):
             with [c1, c2, c3][i % 3]:
-                lvl_color = {'必备': '#00d26a', '推荐': '#f59e0b', '可选': '#9ca3af'}.get(rec['level'], '#9ca3af')
+                lvl_color = {'必备': '#7c3aed', '推荐': '#f59e0b', '可选': '#9ca3af'}.get(rec['level'], '#9ca3af')
                 free_tag = '🆓 免费' if rec['free'] else f"¥{rec['est_cost']}/月"
                 st.markdown(f"""
                 <div class="metric-card" style="margin-bottom:12px;">
@@ -816,8 +827,8 @@ if st.session_state.search_results:
                         <strong style="font-size:15px;">{rec['tool']}</strong>
                         <span style="background:{lvl_color}20;color:{lvl_color};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">{rec['level']}</span>
                     </div>
-                    <div style="font-size:12px;color:#5a6078;margin-bottom:4px;">{free_tag} · {rec['learn']} · {rec['difficulty']}</div>
-                    <div style="font-size:11px;color:#8b92a8;">{', '.join(rec['best_for'])}</div>
+                    <div style="font-size:12px;color:#9b96b0;margin-bottom:4px;">{free_tag} · {rec['learn']} · {rec['difficulty']}</div>
+                    <div style="font-size:11px;color:#6b6680;">{', '.join(rec['best_for'])}</div>
                 </div>
                 """, unsafe_allow_html=True)
         
